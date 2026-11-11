@@ -216,23 +216,22 @@
     if (rm()) return;
     const m = isM(), touch = m || !mqHover.matches, vh0 = window.innerHeight || 800;
     const els = $$('[data-reveal]').filter(el => shown(el) && (!touch || el.getBoundingClientRect().height < vh0 * 0.9));
+    // Each block fades in once as it arrives. (Fading back out as blocks left the screen made the
+    // browser rebuild large layers over and over while scrolling.)
     const io = new IntersectionObserver(es => es.forEach(e => {
+      if (!e.isIntersecting) return;
       const el = e.target, d = touch ? 0 : +(el.dataset.revealDelay || 0);
-      if (e.isIntersecting && touch) { el.style.opacity = '1'; el.style.transform = 'none'; io.unobserve(el); return; }
-      if (e.isIntersecting) { el.style.transitionDelay = d + 'ms'; el.style.opacity = '1'; el.style.transform = 'none'; }
-      else {
-        const top = e.rootBounds ? e.rootBounds.top : 0;
-        const above = e.boundingClientRect.bottom <= top + 2;
-        el.style.transitionDelay = '0ms'; el.style.opacity = '0';
-        el.style.transform = above ? 'translate3d(0,-20px,0)' : 'translate3d(0,28px,0)';
-      }
+      io.unobserve(el);
+      el.style.transitionDelay = d + 'ms'; el.style.opacity = '1'; el.style.transform = 'none';
+      // Hand the element back to normal rendering once it has settled.
+      setTimeout(() => { el.style.transition = ''; el.style.transitionDelay = ''; el.style.opacity = ''; el.style.transform = ''; }, d + 800);
     }));
     els.forEach(el => {
       el.style.transition = m ? 'opacity 700ms ' + E + ', transform 700ms ' + E
         : touch ? 'opacity 450ms ease, transform 500ms ' + E
         : 'opacity 600ms ' + E + ', transform 700ms ' + E;
-      if (touch && el.getBoundingClientRect().top < vh0) return;
-      if (touch) { el.style.opacity = '0'; el.style.transform = m ? 'translate3d(0,20px,0)' : 'translate3d(0,16px,0)'; }
+      if (el.getBoundingClientRect().top < vh0) { el.style.transition = ''; return; }
+      el.style.opacity = '0'; el.style.transform = m ? 'translate3d(0,20px,0)' : touch ? 'translate3d(0,16px,0)' : 'translate3d(0,28px,0)';
       io.observe(el);
     });
 
@@ -309,7 +308,7 @@
       w.style.opacity = on ? '1' : '0';
       w.style.transform = on ? 'none' : 'translate3d(0,0.25em,0)';
     });
-    const io = new IntersectionObserver(es => es.forEach(e => show(e.target, e.isIntersecting)));
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { show(e.target, true); io.unobserve(e.target); } }));
     els.forEach(el => io.observe(el));
 
     const cio = new IntersectionObserver(es => es.forEach(e => {
@@ -798,30 +797,17 @@
     }));
   }
 
-  /* ---------------- Depth: cursor light + magnetic buttons (desktop pointer only) ---------------- */
+  /* ---------------- Magnetic buttons (desktop pointer only) ---------------- */
+  // Only the button under the cursor is touched; nothing else repaints as the mouse moves.
   function setupDepth() {
-    // Drifting light only animates while its section is on screen.
-    const vio = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle('is-vis', e.isIntersecting)));
-    $$('[data-bg]').forEach(s => vio.observe(s));
     if (!mqFine.matches || rm()) return;
-    // One glow element per section, moved with transform only (no repaint of the section).
-    $$('[data-bg]').forEach(s => { const g = document.createElement('span'); g.className = 'bg-glow'; g.setAttribute('aria-hidden', 'true'); s.prepend(g); s._glow = g; });
-    let last = null, cur = null, pe = null, raf = 0;
-    const clearAll = () => { if (last) last._glow.classList.remove('is-on'); last = null; if (cur) cur.style.translate = ''; cur = null; };
+    let cur = null, pe = null, raf = 0;
     document.addEventListener('pointermove', e => {
       pe = e; if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
-        const t = pe.target; if (!t || !t.closest) return;
-        const b = t.closest('[data-bg]');
-        if (last && last !== b) last._glow.classList.remove('is-on');
-        last = b;
-        if (b) {
-          const r = b.getBoundingClientRect();
-          b._glow.style.transform = 'translate3d(' + Math.round(pe.clientX - r.left) + 'px,' + Math.round(pe.clientY - r.top) + 'px,0)';
-          b._glow.classList.add('is-on');
-        }
-        const el = t.closest('[data-magnetic]');
+        const t = pe.target;
+        const el = t && t.closest ? t.closest('[data-magnetic]') : null;
         if (cur && cur !== el) cur.style.translate = '';
         cur = el;
         if (el) {
@@ -831,7 +817,7 @@
         }
       });
     }, { passive: true });
-    document.addEventListener('mouseout', e => { if (!e.relatedTarget) clearAll(); });
+    document.addEventListener('mouseout', e => { if (!e.relatedTarget && cur) { cur.style.translate = ''; cur = null; } });
   }
 
   /* ---------------- Touch press feedback (mobile) ---------------- */
