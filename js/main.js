@@ -36,6 +36,25 @@
   const stickyLink = sticky && $('a', sticky);
   const hdrH = () => (hdr ? hdr.offsetHeight : 72);
 
+  /* ---------------- Scroll lock (menu / sheet). overflow:hidden alone doesn't stop iOS Safari scrolling the page behind. ---------------- */
+  let lockY = 0;
+  function lockScroll() {
+    if (state.locked) return;
+    lockY = window.scrollY; state.locked = true;
+    document.body.style.top = -lockY + 'px';
+    document.body.classList.add('is-locked');
+  }
+  function unlockScroll() {
+    if (!state.locked) return;
+    document.body.classList.remove('is-locked');
+    document.body.style.top = '';
+    const html = document.documentElement, sb = html.style.scrollBehavior;
+    html.style.scrollBehavior = 'auto';
+    window.scrollTo(0, lockY);
+    html.style.scrollBehavior = sb;
+    state.locked = false;
+  }
+
   /* ---------------- Scrolling helpers ---------------- */
   function scrollToEl(el, focusFn) {
     if (!el) return;
@@ -43,23 +62,38 @@
     window.scrollTo({ top: Math.max(0, top), behavior: rm() ? 'auto' : 'smooth' });
     if (focusFn) setTimeout(() => focusNoScroll(focusFn()), rm() ? 0 : 700);
   }
-  const goTo = id => { if (state.menu) closeMenu(false); scrollToEl(document.getElementById(id)); };
+  const closeOverlays = () => { if (state.menu) closeMenu(false); if (state.sheet) closeSheet(true); };
+  const goTo = id => { closeOverlays(); scrollToEl(document.getElementById(id)); };
   const goTop = () => { if (state.menu) closeMenu(false); window.scrollTo({ top: 0, behavior: rm() ? 'auto' : 'smooth' }); };
   const quoteTarget = () => (isM() ? $('[data-quote-card]') : $('#quote'));
   const goQuote = () => {
-    if (state.menu) closeMenu(false);
+    closeOverlays();
     scrollToEl(quoteTarget(), () => (state.sent ? $('[data-sent-h]') : $('#f-name')));
   };
 
   /* ---------------- Scroll-linked work (header, progress, parallax, glow) ---------------- */
-  function scrollWork() {
-    const y = window.scrollY, vh = window.innerHeight || 1, m = isM();
-    const hb = hero ? hero.offsetHeight : 0;
+  // Sizes that only change on resize are measured once, not on every scroll frame.
+  const dims = { hb: 0, hh: 72, max: 1, gh: 1, vh: 1, ok: false };
+  function measure() {
+    dims.vh = window.innerHeight || 1;
+    dims.hb = hero ? hero.offsetHeight : 0;
+    dims.hh = hdrH();
     const se = document.scrollingElement || document.documentElement;
-    const max = Math.max(1, se.scrollHeight - vh);
-
+    dims.max = Math.max(1, se.scrollHeight - dims.vh);
+    dims.gh = glow ? (glow.offsetHeight || 1) : 1;
+    dims.ok = true;
+  }
+  let heroReset = false;
+  function scrollWork() {
+    if (state.locked) return; // page is pinned while the menu/sheet is open
+    if (!dims.ok) measure();
+    // ---- reads (all layout reads happen before any style writes, so the browser lays out once) ----
+    const y = window.scrollY, m = isM(), { hb, hh, max, gh, vh } = dims;
+    const pxR = m ? null : pxEls.map(el => el.parentElement.getBoundingClientRect());
+    checkWipes(); // reads, then starts compositor-only animations
+    // ---- writes ----
     if (hdr) {
-      const solid = hb ? y > hb - hdrH() - 1 : true;
+      const solid = hb ? y > hb - hh - 1 : true;
       hdr.classList.toggle('is-solid', solid);
       hdr.classList.toggle('is-shrunk', m && y > 40);
       if (solid) hdr.removeAttribute('data-dark'); else hdr.setAttribute('data-dark', 'true');
@@ -67,40 +101,38 @@
     const past = hb ? y > hb * 0.6 : true;
     if (past !== state.past) { state.past = past; updateSticky(); }
     if (bar) bar.style.transform = 'scaleX(' + Math.min(1, y / max).toFixed(4) + ')';
-    checkWipes();
 
     if (rm()) { if (glow) glow.style.transform = 'scaleY(1)'; return; }
 
     if (heroContent) {
       if (!m && hb && y < hb * 1.2) {
+        heroReset = false;
         const p = Math.min(1, y / (hb * 0.7));
         heroContent.style.opacity = (1 - p).toFixed(3);
         heroContent.style.transform = 'translate3d(0,' + (y * 0.28).toFixed(1) + 'px,0)';
         const sc = 'scale(' + (1 + Math.min(1, y / hb) * 0.1).toFixed(4) + ')';
         if (heroVideo) heroVideo.style.transform = sc;
         if (heroPoster) heroPoster.style.transform = sc;
-      } else if (m) {
+      } else if (m && !heroReset) {
+        heroReset = true;
         heroContent.style.opacity = ''; heroContent.style.transform = '';
         if (heroVideo) heroVideo.style.transform = '';
         if (heroPoster) heroPoster.style.transform = '';
+        pxEls.forEach(el => { el.style.transform = ''; });
       }
     }
 
-    if (!m) {
-      const rects = pxEls.map(el => el.parentElement.getBoundingClientRect());
+    if (pxR) {
       pxEls.forEach((el, i) => {
-        const r = rects[i];
+        const r = pxR[i];
         if (!r.height || r.bottom < -200 || r.top > vh + 200) return;
         const lim = r.height * 0.075;
         const off = Math.max(-lim, Math.min(lim, -(r.top + r.height / 2 - vh / 2) * 0.1));
         el.style.transform = 'translate3d(0,' + off.toFixed(1) + 'px,0)';
       });
-    } else {
-      pxEls.forEach(el => { el.style.transform = ''; });
     }
 
     if (glow) {
-      const gh = glow.offsetHeight || 1;
       const rem = Math.max(0, max - y);
       const rev = Math.min(1, Math.max(0, (gh - rem) / gh));
       glow.style.transform = 'scaleY(' + (0.035 + 0.965 * rev).toFixed(3) + ')';
@@ -395,21 +427,21 @@
     sheet.classList.add('is-open'); sheetBackdrop.classList.add('is-open');
     sheet.style.transform = '';
     sheetAria();
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     sheet.scrollTop = 0;
     updateSticky();
     setTimeout(() => focusNoScroll(sheetCloseBtn), 80);
   }
-  function closeSheet() {
+  function closeSheet(navigating) {
     if (!state.sheet) return;
     state.sheet = false;
     sheet.classList.remove('is-open'); sheetBackdrop.classList.remove('is-open');
     sheet.style.transform = '';
     sheetAria();
-    document.body.style.overflow = '';
+    unlockScroll();
     updateSticky();
     const r = shRet; shRet = null;
-    if (r && r.focus) focusNoScroll(r);
+    if (r && r.focus && navigating !== true) focusNoScroll(r);
   }
   function trapTab(e, root) {
     if (e.key !== 'Tab') return;
@@ -706,7 +738,7 @@
     menu.classList.add('is-open'); menu.setAttribute('aria-hidden', 'false');
     menuBtn.setAttribute('aria-expanded', 'true');
     morph(true);
-    document.body.style.overflow = 'hidden';
+    lockScroll();
     updateSticky();
     setTimeout(() => menuCloseBtn.focus(), 80);
   }
@@ -716,7 +748,7 @@
     menu.classList.remove('is-open'); menu.setAttribute('aria-hidden', 'true');
     menuBtn.setAttribute('aria-expanded', 'false');
     morph(false);
-    document.body.style.overflow = '';
+    unlockScroll();
     updateSticky();
     if (restore) setTimeout(() => menuBtn.focus(), 40);
   }
@@ -768,22 +800,26 @@
 
   /* ---------------- Depth: cursor light + magnetic buttons (desktop pointer only) ---------------- */
   function setupDepth() {
+    // Drifting light only animates while its section is on screen.
+    const vio = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle('is-vis', e.isIntersecting)));
+    $$('[data-bg]').forEach(s => vio.observe(s));
     if (!mqFine.matches || rm()) return;
+    // One glow element per section, moved with transform only (no repaint of the section).
+    $$('[data-bg]').forEach(s => { const g = document.createElement('span'); g.className = 'bg-glow'; g.setAttribute('aria-hidden', 'true'); s.prepend(g); s._glow = g; });
     let last = null, cur = null, pe = null, raf = 0;
-    const clearAll = () => { if (last) last.style.setProperty('--mo', '0'); last = null; if (cur) cur.style.translate = ''; cur = null; };
+    const clearAll = () => { if (last) last._glow.classList.remove('is-on'); last = null; if (cur) cur.style.translate = ''; cur = null; };
     document.addEventListener('pointermove', e => {
       pe = e; if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
         const t = pe.target; if (!t || !t.closest) return;
         const b = t.closest('[data-bg]');
-        if (last && last !== b) last.style.setProperty('--mo', '0');
+        if (last && last !== b) last._glow.classList.remove('is-on');
         last = b;
         if (b) {
           const r = b.getBoundingClientRect();
-          b.style.setProperty('--mx', (pe.clientX - r.left) + 'px');
-          b.style.setProperty('--my', (pe.clientY - r.top) + 'px');
-          b.style.setProperty('--mo', '1');
+          b._glow.style.transform = 'translate3d(' + Math.round(pe.clientX - r.left) + 'px,' + Math.round(pe.clientY - r.top) + 'px,0)';
+          b._glow.classList.add('is-on');
         }
         const el = t.closest('[data-magnetic]');
         if (cur && cur !== el) cur.style.translate = '';
@@ -884,8 +920,10 @@
     scrollWork();
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', () => { strip.half = 0; scrollWork(); }, { passive: true });
-    window.addEventListener('load', scrollWork, { once: true });
+    window.addEventListener('resize', () => { strip.half = 0; dims.ok = false; scrollWork(); }, { passive: true });
+    window.addEventListener('load', () => { dims.ok = false; scrollWork(); }, { once: true });
+    // Page height changes (fonts loading, accordions, form success panel): re-measure on the next scroll frame.
+    if (window.ResizeObserver) new ResizeObserver(() => { dims.ok = false; }).observe(document.body);
     const onMq = (mq, fn) => (mq.addEventListener ? mq.addEventListener('change', fn) : mq.addListener(fn));
     onMq(mqM, onBreakpoint);
     onMq(mqWide, () => { if (mqWide.matches) closeMenu(false); });
