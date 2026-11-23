@@ -7,4 +7,9 @@
     <image:image><image:loc>https://www.fmntravel.com/assets/img/her-photo-beach-woman.jpg</image:loc></image:image>
     <image:image><image:loc>https://www.fmntravel.com/assets/img/mandy.jpg</image:loc></image:image>
   </url>
+  <url>
+    <loc>https://www.fmntravel.com/work-with-me</loc>
+    <lastmod>2026-11-23</lastmod>
+    <image:image><image:loc>https://www.fmntravel.com/assets/img/mandy.jpg</image:loc></image:image>
+  </url>
 </urlset>
