@@ -1,0 +1,5 @@
+# Forget Me Not Travel
+User-agent: *
+Allow: /
+
+Sitemap: https://www.fmntravel.com/sitemap.xml
