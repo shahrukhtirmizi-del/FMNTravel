@@ -706,27 +706,33 @@
       };
       const honey = form.querySelector('[name="_gotcha"]');
       if (honey && honey.value) { done(); return; } // a spam bot filled the hidden field: don't send
-      fetch(FORM_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({
-          _subject: 'New quote request from ' + val('f-name') + ' (fmntravel.com)',
-          name: val('f-name'),
-          email: val('f-email'), // Formspree uses this as the reply-to address
-          phone: val('f-phone') || 'Not given',
-          trip: val('f-trip')
-        })
-      })
+      // Form-encoded (not JSON) so the browser sends one request with no CORS preflight round trip.
+      // keepalive lets the request finish even if the visitor closes the page straight away.
+      const body = new URLSearchParams({
+        _subject: 'New quote request from ' + val('f-name') + ' (fmntravel.com)',
+        name: val('f-name'),
+        email: val('f-email'), // Formspree uses this as the reply-to address
+        phone: val('f-phone') || 'Not given',
+        trip: val('f-trip')
+      });
+      let settled = false, shown = false;
+      // Formspree can take several seconds to answer. Show the thank-you promptly instead of making
+      // the visitor wait; if the send then fails, the form comes back (still filled in) with an error.
+      const early = setTimeout(() => { if (!settled) { shown = true; done(); } }, 700);
+      fetch(FORM_ENDPOINT, { method: 'POST', headers: { Accept: 'application/json' }, body, keepalive: true })
         .then(r => r.json().catch(() => ({})).then(j => {
           if (!r.ok || j.ok === false) throw new Error((j.errors || []).map(x => x.message).join('; ') || j.error || 'HTTP ' + r.status);
         }))
-        .then(() => { track('form_submit'); done(); })
+        .then(() => { settled = true; clearTimeout(early); track('form_submit'); if (!shown) done(); })
         .catch(err => {
+          settled = true; clearTimeout(early);
           // Visible in the browser console (F12) to diagnose delivery problems, e.g. a wrong form ID.
           console.warn('Quote form not delivered:', err && err.message);
           sending = false;
+          if (shown) showForm();
           submitBtn.textContent = 'Submit'; submitBtn.setAttribute('aria-disabled', 'false');
           setFormError('Sorry, your request didn’t send. Please try again, or email mandy@fmntravel.com directly.');
+          if (shown) focusNoScroll(submitBtn);
         });
     });
   }
