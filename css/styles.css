@@ -635,3 +635,7 @@ body.is-locked { position: fixed; left: 0; right: 0; width: 100%; overflow: hidd
   .wp-traits__list li { flex-direction: row; align-items: center; gap: 16px; padding: 20px; font-size: 17px; }
   .wp-num { flex: none; width: 44px; font-size: 32px; }
 }
+
+/* Office phone number */
+.menu__info .menu__tel { font-weight: 600; font-size: 18px; }
+.wp-call { margin: -8px 0 4px !important; font-size: 16px !important; }

@@ -14,6 +14,10 @@ assets/           brand (logo), img (photos and posters), video (hero and specia
 
 **Deploy:** upload the contents of this folder (`index.html` at the root) to Netlify Drop, Vercel or any static host.
 
+## Contact details on the site
+
+Email mandy@fmntravel.com and office phone 01483 952482 (`tel:+441483952482`) appear in the menu, quote section, footer, the Work with me page and the structured data. Change all of them together so search engines see one consistent number.
+
 ## Not done yet
 
 - **Quote form → email.** Submissions go to Formspree (`FORMSPREE_ID` in `js/main.js`), which emails each one to mandy@fmntravel.com and keeps a copy in the Formspree dashboard. Pressing Reply on the email replies to the visitor. A hidden `_gotcha` field filters basic spam bots.
