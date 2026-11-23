@@ -663,9 +663,10 @@
       inp.setAttribute('aria-invalid', 'false'); inp.removeAttribute('aria-describedby');
     }
   }
-  // Where quote requests are sent. FormSubmit emails them to this address.
-  // (After the first submission, Mandy must click the activation link FormSubmit emails her.)
-  const FORM_ENDPOINT = 'https://formsubmit.co/ajax/mandy@fmntravel.com';
+  // Where quote requests are sent: Formspree emails each one to the account's address (mandy@fmntravel.com)
+  // and keeps a copy in the Formspree dashboard. Replace the ID below with the form's ID from formspree.io.
+  const FORMSPREE_ID = 'xeagpgko';
+  const FORM_ENDPOINT = 'https://formspree.io/f/' + FORMSPREE_ID;
   function setFormError(msg) {
     const p = $('[data-form-err]'); if (!p) return;
     p.textContent = msg; p.hidden = !msg;
@@ -703,28 +704,25 @@
         form.hidden = true; sent.hidden = false;
         focusNoScroll($('[data-sent-h]'));
       };
-      const honey = form.querySelector('[name="_honey"]');
+      const honey = form.querySelector('[name="_gotcha"]');
       if (honey && honey.value) { done(); return; } // a spam bot filled the hidden field: don't send
-      // FormSubmit forwards each enquiry to Mandy's inbox, so the site needs no server of its own.
       fetch(FORM_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
           _subject: 'New quote request from ' + val('f-name') + ' (fmntravel.com)',
-          _template: 'table',
-          _replyto: val('f-email'),
-          Name: val('f-name'),
-          Email: val('f-email'),
-          Phone: val('f-phone') || 'Not given',
-          'Trip details': val('f-trip')
+          name: val('f-name'),
+          email: val('f-email'), // Formspree uses this as the reply-to address
+          phone: val('f-phone') || 'Not given',
+          trip: val('f-trip')
         })
       })
         .then(r => r.json().catch(() => ({})).then(j => {
-          if (!r.ok || j.success === false || j.success === 'false') throw new Error(j.message || 'HTTP ' + r.status);
+          if (!r.ok || j.ok === false) throw new Error((j.errors || []).map(x => x.message).join('; ') || j.error || 'HTTP ' + r.status);
         }))
         .then(() => { track('form_submit'); done(); })
         .catch(err => {
-          // Visible in the browser console (F12) to diagnose delivery problems, e.g. "This form needs Activation".
+          // Visible in the browser console (F12) to diagnose delivery problems, e.g. a wrong form ID.
           console.warn('Quote form not delivered:', err && err.message);
           sending = false;
           submitBtn.textContent = 'Submit'; submitBtn.setAttribute('aria-disabled', 'false');

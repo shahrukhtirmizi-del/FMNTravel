@@ -16,7 +16,7 @@ assets/           brand (logo), img (photos and posters), video (hero and specia
 
 ## Not done yet
 
-- **Quote form → email.** Submissions are sent by FormSubmit (formsubmit.co) to mandy@fmntravel.com (`FORM_ENDPOINT` in `js/main.js`). The very first submission triggers an activation email to that inbox; nothing is delivered until Mandy clicks the link in it. Replies go straight to the visitor (`_replyto`). A hidden `_honey` field filters basic spam bots.
+- **Quote form → email.** Submissions go to Formspree (`FORMSPREE_ID` in `js/main.js`), which emails each one to mandy@fmntravel.com and keeps a copy in the Formspree dashboard. Pressing Reply on the email replies to the visitor. A hidden `_gotcha` field filters basic spam bots.
 - **Analytics hooks only.** Clicks push `{event}` to `window.dataLayer` (`quote_click`, `trustpilot_click`, `work_with_me_click`, `destination_click`, `form_submit`), ready for Google Tag Manager.
 - **The social share image (`og:image`) and the structured-data image** point to `https://www.fmntravel.com/assets/img/her-photo-beach-woman.jpg`. That URL only works once the site is live on that domain.
 - **The font is General Sans, loaded from Fontshare** (`api.fontshare.com`). If that service can't be reached, the page falls back to the system sans-serif.
