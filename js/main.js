@@ -723,7 +723,9 @@
           if (!r.ok || j.success === false || j.success === 'false') throw new Error(j.message || 'HTTP ' + r.status);
         }))
         .then(() => { track('form_submit'); done(); })
-        .catch(() => {
+        .catch(err => {
+          // Visible in the browser console (F12) to diagnose delivery problems, e.g. "This form needs Activation".
+          console.warn('Quote form not delivered:', err && err.message);
           sending = false;
           submitBtn.textContent = 'Submit'; submitBtn.setAttribute('aria-disabled', 'false');
           setFormError('Sorry, your request didn’t send. Please try again, or email mandy@fmntravel.com directly.');
