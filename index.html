@@ -594,7 +594,10 @@
           <textarea id="f-trip" name="trip" rows="6" required aria-required="true" placeholder="Tell us as much as you can..."></textarea>
           <p class="field__err" id="f-trip-err" hidden></p>
         </div>
+        <!-- Spam trap: hidden from people, bots fill it in -->
+        <input class="sr-only" type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button class="form__submit" data-magnetic type="submit" data-track="form_submit" aria-disabled="false">Submit</button>
+        <p class="field__err" role="alert" hidden data-form-err></p>
       </form>
       <div class="sent" role="status" hidden data-sent>
         <h3 tabindex="-1" data-sent-h>Thank you</h3>

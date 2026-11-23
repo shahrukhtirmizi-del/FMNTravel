@@ -663,6 +663,13 @@
       inp.setAttribute('aria-invalid', 'false'); inp.removeAttribute('aria-describedby');
     }
   }
+  // Where quote requests are sent. FormSubmit emails them to this address.
+  // (After the first submission, Mandy must click the activation link FormSubmit emails her.)
+  const FORM_ENDPOINT = 'https://formsubmit.co/ajax/mandy@fmntravel.com';
+  function setFormError(msg) {
+    const p = $('[data-form-err]'); if (!p) return;
+    p.textContent = msg; p.hidden = !msg;
+  }
   function showForm() {
     state.sent = false;
     form.hidden = false; sent.hidden = true;
@@ -687,15 +694,40 @@
         if (msg && !first) first = k;
       });
       if (first) { document.getElementById(fieldIds[first]).focus(); return; }
-      // The form isn't connected to a backend yet: show progress, then the success panel.
       sending = true;
+      setFormError('');
       submitBtn.textContent = 'Sending…'; submitBtn.setAttribute('aria-disabled', 'true');
-      track('form_submit');
-      setTimeout(() => {
+      const val = id => document.getElementById(id).value.trim();
+      const done = () => {
         sending = false; state.sent = true;
         form.hidden = true; sent.hidden = false;
         focusNoScroll($('[data-sent-h]'));
-      }, 1100);
+      };
+      const honey = form.querySelector('[name="_honey"]');
+      if (honey && honey.value) { done(); return; } // a spam bot filled the hidden field: don't send
+      // FormSubmit forwards each enquiry to Mandy's inbox, so the site needs no server of its own.
+      fetch(FORM_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          _subject: 'New quote request from ' + val('f-name') + ' (fmntravel.com)',
+          _template: 'table',
+          _replyto: val('f-email'),
+          Name: val('f-name'),
+          Email: val('f-email'),
+          Phone: val('f-phone') || 'Not given',
+          'Trip details': val('f-trip')
+        })
+      })
+        .then(r => r.json().catch(() => ({})).then(j => {
+          if (!r.ok || j.success === false || j.success === 'false') throw new Error(j.message || 'HTTP ' + r.status);
+        }))
+        .then(() => { track('form_submit'); done(); })
+        .catch(() => {
+          sending = false;
+          submitBtn.textContent = 'Submit'; submitBtn.setAttribute('aria-disabled', 'false');
+          setFormError('Sorry, your request didn’t send. Please try again, or email mandy@fmntravel.com directly.');
+        });
     });
   }
 
